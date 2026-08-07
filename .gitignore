@@ -1,5 +1,6 @@
 # --- Data leak guard -------------------------------------------------------
 # Block every dataset by default. Only the tiny anonymized starter slice ships.
+.env
 data/**
 !data/
 !data/raw/
