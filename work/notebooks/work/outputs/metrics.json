@@ -1,0 +1,50 @@
+{
+  "month": "2026-03",
+  "client_scope": "single client (client_23a62021009f63c4) \u2014 see Section 2 limits",
+  "total_flagged_rows": 708842,
+  "reason_code_counts": {
+    "ZERO_CLICKS_WITH_VISIBILITY": 696961,
+    "POOR_POSITION_WITH_VISIBILITY": 11881
+  },
+  "overall_avg_ctr": 0.003060148107422445,
+  "ctr_by_position_bucket": {
+    "1-3": 0.0038,
+    "4-10": 0.0032,
+    "11-20": 0.0031,
+    "21+": 0.0013
+  },
+  "week4_baseline": {
+    "rule": "position >= 21 AND impressions >= 50",
+    "reason_code": "POOR_POSITION_WITH_VISIBILITY",
+    "action": "improve_ctr",
+    "rows_flagged": 183158
+  },
+  "model_vs_baseline_week5": {
+    "split": "grouped by content_hash_id (GroupShuffleSplit, test_size=0.2)",
+    "baseline_week4_rule": {
+      "precision": 0.857519,
+      "recall": 0.048466,
+      "f1": 0.091747
+    },
+    "logistic_regression_week5": {
+      "precision": 0.957154,
+      "recall": 0.846517,
+      "f1": 0.898442
+    }
+  },
+  "week5_model_coefficients": {
+    "gsc_avg_position": 0.037346,
+    "gsc_impressions": -0.00576
+  },
+  "week5_confusion_matrix": {
+    "true_negatives": 46642,
+    "false_positives": 24695,
+    "false_negatives": 100024,
+    "true_positives": 551670
+  },
+  "grouped_vs_naive_split_week6": {
+    "note": "Before/after naive-vs-grouped split comparison was designed in Week 6 but not confirmed run in the notebooks provided \u2014 fill in once w06 is executed.",
+    "naive_split_before": null,
+    "grouped_split_after": null
+  }
+}
