@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Position Cliff — Ranking Signal Analysis on FlyRank Search Data</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#15181c;
+    --ink-soft:#20242a;
+    --paper:#efe7d8;
+    --paper-dim:#c9c0ac;
+    --text-on-paper:#1b1d1f;
+    --amber:#d98e32;
+    --teal:#2f8f80;
+    --rule:#3a3f47;
+    --rule-light:#d8cfba;
+    --radius:2px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--paper);
+    font-family:'IBM Plex Sans', sans-serif;
+    line-height:1.6;
+  }
+  a{color:var(--amber);}
+  .mono{font-family:'IBM Plex Mono', monospace;}
+  h1,h2,h3{font-family:'Fraunces', serif; font-weight:600; margin:0 0 .5em;}
+  h1{font-weight:300; letter-spacing:-.01em;}
+
+  /* ===== layout shell ===== */
+  .shell{display:flex; min-height:100vh;}
+  nav.rail{
+    width:220px; flex-shrink:0;
+    position:sticky; top:0; align-self:flex-start; height:100vh;
+    padding:2.5rem 1.25rem;
+    border-right:1px solid var(--rule);
+    overflow-y:auto;
+  }
+  nav.rail .brand{font-family:'Fraunces',serif; font-size:1rem; color:var(--paper-dim); margin-bottom:2rem; letter-spacing:.02em;}
+  nav.rail ol{list-style:none; margin:0; padding:0;}
+  nav.rail li{margin-bottom:.35rem;}
+  nav.rail a{
+    display:flex; align-items:center; gap:.6rem;
+    text-decoration:none; color:var(--paper-dim);
+    font-size:.82rem; padding:.35rem .4rem; border-radius:var(--radius);
+    transition:color .15s ease, background .15s ease;
+  }
+  nav.rail a:hover, nav.rail a.active{color:var(--paper); background:var(--ink-soft);}
+  .badge{
+    width:1.5rem; height:1.5rem; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono',monospace; font-size:.68rem;
+    border:1px solid var(--rule); flex-shrink:0; color:var(--paper-dim);
+  }
+  nav.rail a.active .badge{border-color:var(--amber); color:var(--amber);}
+  nav.rail a[data-kind="finding"] .badge{border-color:var(--teal); color:var(--teal);}
+  nav.rail a.active[data-kind="finding"] .badge{background:var(--teal); color:var(--ink);}
+
+  main{flex:1; min-width:0;}
+  .wrap{max-width:760px; margin:0 auto; padding:0 2rem;}
+
+  /* ===== hero ===== */
+  .hero{padding:5rem 0 4rem; border-bottom:1px solid var(--rule);}
+  .hero .eyebrow{font-family:'IBM Plex Mono',monospace; color:var(--amber); font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; margin-bottom:1.25rem;}
+  .hero h1{font-size:clamp(2.1rem, 5vw, 3.3rem); color:var(--paper); max-width:14ch;}
+  .hero .sub{color:var(--paper-dim); font-size:1.05rem; max-width:46ch; margin-top:1rem;}
+  .hero .meta{margin-top:2rem; font-family:'IBM Plex Mono',monospace; font-size:.78rem; color:var(--paper-dim);}
+
+  /* cliff chart, css bars w/ real numbers */
+  .cliff{display:flex; align-items:flex-end; gap:1.75rem; height:180px; margin-top:3rem; padding-top:1rem;}
+  .cliff .bar-col{display:flex; flex-direction:column; align-items:center; gap:.5rem; flex:1;}
+  .cliff .bar{width:100%; background:linear-gradient(180deg, var(--teal), #1d6156); border-radius:3px 3px 0 0;}
+  .cliff .bar-col:last-child .bar{background:linear-gradient(180deg, var(--amber), #a4631a);}
+  .cliff .val{font-family:'IBM Plex Mono',monospace; font-size:.72rem; color:var(--paper);}
+  .cliff .lbl{font-family:'IBM Plex Mono',monospace; font-size:.68rem; color:var(--paper-dim);}
+
+  /* ===== sections ===== */
+  section{padding:4rem 0; border-bottom:1px solid var(--rule);}
+  section:last-of-type{border-bottom:none;}
+  .kicker{font-family:'IBM Plex Mono',monospace; color:var(--amber); font-size:.75rem; letter-spacing:.08em; text-transform:uppercase; margin-bottom:.6rem;}
+  section h2{font-size:1.7rem; color:var(--paper);}
+  section p{color:#ddd6c4; max-width:64ch;}
+  section p + p{margin-top:1rem;}
+
+  .card{
+    background:var(--paper); color:var(--text-on-paper);
+    border-radius:var(--radius); padding:1.4rem 1.6rem; margin:1.5rem 0;
+    border-left:3px solid var(--amber);
+  }
+  .card.teal{border-left-color:var(--teal);}
+  .card h3{font-size:1.05rem; margin-bottom:.4rem; color:var(--text-on-paper);}
+  .card p{color:#3a352c; margin:0;}
+
+  table{width:100%; border-collapse:collapse; margin:1.5rem 0; font-size:.88rem;}
+  th,td{text-align:left; padding:.55rem .7rem; border-bottom:1px solid var(--rule);}
+  th{font-family:'IBM Plex Mono',monospace; font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; color:var(--paper-dim); font-weight:500;}
+  td{color:#e4ddc9;}
+  td.num, th.num{font-family:'IBM Plex Mono',monospace; text-align:right;}
+  tr.highlight td{color:var(--teal); font-weight:600;}
+
+  .stat-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:1.25rem; margin:1.75rem 0;}
+  .stat{border:1px solid var(--rule); border-radius:var(--radius); padding:1rem;}
+  .stat .num{font-family:'Fraunces',serif; font-size:1.6rem; color:var(--paper);}
+  .stat .lbl{font-family:'IBM Plex Mono',monospace; font-size:.68rem; color:var(--paper-dim); margin-top:.25rem;}
+
+  figure{margin:2rem 0;}
+  figure img{width:100%; border-radius:var(--radius); border:1px solid var(--rule); background:#fff;}
+  figcaption{font-family:'IBM Plex Mono',monospace; font-size:.72rem; color:var(--paper-dim); margin-top:.6rem;}
+
+  code{font-family:'IBM Plex Mono',monospace; background:var(--ink-soft); padding:.1em .4em; border-radius:2px; font-size:.85em; color:var(--amber);}
+
+  .rank-list{list-style:none; margin:1.5rem 0; padding:0; counter-reset:rank;}
+  .rank-list li{
+    counter-increment:rank; display:flex; gap:1rem; padding:1rem 0;
+    border-bottom:1px solid var(--rule);
+  }
+  .rank-list li::before{
+    content:counter(rank,decimal-leading-zero);
+    font-family:'IBM Plex Mono',monospace; color:var(--amber); font-size:.85rem; flex-shrink:0; padding-top:.1rem;
+  }
+  .rank-list strong{color:var(--paper); display:block; margin-bottom:.2rem;}
+  .rank-list span{color:var(--paper-dim); font-size:.9rem;}
+
+  .tag{display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:.68rem; padding:.15rem .5rem; border-radius:20px; border:1px solid; margin-right:.4rem;}
+  .tag.confirmed{color:var(--teal); border-color:var(--teal);}
+  .tag.reversed{color:var(--amber); border-color:var(--amber);}
+  .tag.mixed{color:#c9a04a; border-color:#c9a04a;}
+
+  footer{padding:3rem 0 5rem; text-align:left;}
+  footer p{color:var(--paper-dim); font-size:.85rem;}
+  footer a{color:var(--paper);}
+
+  ul.plain{color:#ddd6c4; padding-left:1.2rem;}
+  ul.plain li{margin-bottom:.6rem;}
+  ul.plain li::marker{color:var(--amber);}
+
+  @media (max-width:860px){
+    .shell{flex-direction:column;}
+    nav.rail{
+      width:100%; height:auto; position:sticky; top:0; z-index:10;
+      background:var(--ink); border-right:none; border-bottom:1px solid var(--rule);
+      padding:1rem 1.25rem; overflow-x:auto;
+    }
+    nav.rail .brand{display:none;}
+    nav.rail ol{display:flex; gap:.5rem;}
+    nav.rail li{margin:0; flex-shrink:0;}
+    nav.rail a span.label{display:none;}
+    .wrap{padding:0 1.25rem;}
+    .cliff{gap:.9rem;}
+  }
+  @media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto;} }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <nav class="rail" aria-label="Paper sections">
+    <div class="brand">Position Cliff / 2026</div>
+    <ol>
+      <li><a href="#abstract"><span class="badge">01</span><span class="label">Abstract</span></a></li>
+      <li><a href="#introduction"><span class="badge">02</span><span class="label">Introduction</span></a></li>
+      <li><a href="#data"><span class="badge">03</span><span class="label">Data</span></a></li>
+      <li><a href="#methodology"><span class="badge">04</span><span class="label">Methodology</span></a></li>
+      <li><a href="#results" data-kind="finding"><span class="badge">05</span><span class="label">Results</span></a></li>
+      <li><a href="#limitations"><span class="badge">06</span><span class="label">Limitations</span></a></li>
+      <li><a href="#recommendations" data-kind="finding"><span class="badge">07</span><span class="label">Recommendations</span></a></li>
+      <li><a href="#reproducibility"><span class="badge">08</span><span class="label">Reproducibility</span></a></li>
+      <li><a href="#acknowledgments"><span class="badge">09</span><span class="label">Credits</span></a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <div class="hero">
+      <div class="wrap">
+        <div class="eyebrow">Capstone research paper · Ranking Signal Analysis</div>
+        <h1>The Position Cliff</h1>
+        <p class="sub">Click-through rate doesn't fade with rank — it falls off a shelf at position 21. A study of 3.6 million page-days from FlyRank's March 2026 search warehouse, and what a learned model catches that a hand-written rule misses.</p>
+        <div class="meta">Bilaal Bakare · FlyRank ML Internship · March 2026 warehouse slice</div>
+
+        <div class="cliff" role="img" aria-label="Weighted CTR by position bucket: 0.38% at 1-3, 0.32% at 4-10, 0.31% at 11-20, 0.13% at 21+">
+          <div class="bar-col"><div class="val">0.38%</div><div class="bar" style="height:120px"></div><div class="lbl">POS 1–3</div></div>
+          <div class="bar-col"><div class="val">0.32%</div><div class="bar" style="height:101px"></div><div class="lbl">POS 4–10</div></div>
+          <div class="bar-col"><div class="val">0.31%</div><div class="bar" style="height:98px"></div><div class="lbl">POS 11–20</div></div>
+          <div class="bar-col"><div class="val">0.13%</div><div class="bar" style="height:41px"></div><div class="lbl">POS 21+</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap">
+
+      <section id="abstract">
+        <div class="kicker">01 — Abstract</div>
+        <h2>Abstract</h2>
+        <p>Does a page's search position and visibility reliably predict whether its click-through rate will underperform, and can a simple learned model out-prioritize a hand-written rule at flagging the pages worth a human's attention? Using 3.6 million page-day records drawn from FlyRank's March 2026 Search Console warehouse slice, we built a hand-written baseline rule (position ≥ 21 and impressions ≥ 50) and compared it against a logistic regression model trained on the same two signals, validated with a page-grouped holdout split so the same content item never appears in both train and test. The learned model substantially outperformed the rule (F1 0.898 vs. 0.092), driven almost entirely by recall: the rule's strict threshold caught only 4.8% of genuinely low-CTR pages, while the model caught 84.7%, without losing precision (0.957 vs. 0.858). Click-through rate did not decline gradually with position — it stayed roughly flat from position 1 through 20 (0.31%–0.38%) and then collapsed at position 21+ (0.13%), and raw search volume was a weak predictor of ranking quality on its own. We turn these findings into a two-reason-code, human-reviewed action queue, and we are explicit about where the analysis stops: it is observational, single-month, and — contrary to an assumption we carried from an early small sample — spans several clients rather than one, a correction we made during our own validation audit.</p>
+      </section>
+
+      <section id="introduction">
+        <div class="kicker">02 — Introduction</div>
+        <h2>Problem statement</h2>
+        <p>Content and SEO teams routinely act on assumptions that sound obvious: rank higher and you'll get more clicks; a high-search-volume keyword is worth more than a low-volume one; older content is stale content. This project set out to test those assumptions against real search performance data rather than accept them by default, in the specific context of <strong>Ranking Signal Analysis</strong> — deciding which of the many available signals (position, click-through rate, impression volume) a content team should actually trust when prioritizing limited review time.</p>
+        <p>The decision this work is meant to improve: which pages get a human's attention first. The action a strategist takes from it: review a ranked queue and choose between a CTR-focused fix or a content-quality review. The cost of getting it wrong is asymmetric and real — flagging a weak signal as a strong driver of decline sends effort toward pages that don't need it, while the pages that are actually underperforming go untouched.</p>
+      </section>
+
+      <section id="data">
+        <div class="kicker">03 — Data</div>
+        <h2>Data</h2>
+        <p>All analysis after the initial exploratory pass draws from the <strong>FlyRank Internship Warehouse</strong> release on Hugging Face (<code>FlyRank/internship-warehouse</code>), specifically the <code>fact_content_daily_performance</code> table — 78,835,655 rows at full scale, with a stated grain of one row per report date, per pseudonymized client, per pseudonymized content item.</p>
+        <div class="stat-grid">
+          <div class="stat"><div class="num">78.8M</div><div class="lbl">full table rows</div></div>
+          <div class="stat"><div class="num">3.61M</div><div class="lbl">March 2026 slice used</div></div>
+          <div class="stat"><div class="num">1</div><div class="lbl">month analyzed (2026-03)</div></div>
+          <div class="stat"><div class="num">31</div><div class="lbl">columns in source table</div></div>
+        </div>
+        <p>We queried this table directly with DuckDB against its remote Parquet partitions, filtering to <code>month = '2026-03'</code> — a deliberately chosen mid-panel month. The table's <code>_sample</code> partition is not a random sample; it is the sealed final month of the dataset (June 2026), reserved for testing query mechanics, never for developing label or feature logic, since it is the natural outcome window for any past-predicts-future setup.</p>
+        <p>Of the 31 available columns, every GA4, session-source, and AI-referral field (<code>ga4_*</code>, <code>sessions_*</code>, <code>ai_*</code>, <code>scroll_events</code>) was <strong>entirely empty</strong> in this slice — zero non-null values. The usable signal surface was therefore limited to Search Console fields: <code>gsc_impressions</code>, <code>gsc_clicks</code>, <code>gsc_avg_position</code>, and <code>gsc_sum_position</code>. This is a hard ceiling on what the analysis can say — nothing here speaks to on-site engagement, conversions, or AI-driven traffic.</p>
+      </section>
+
+      <section id="methodology">
+        <div class="kicker">04 — Methodology</div>
+        <h2>Methodology</h2>
+        <h3 style="font-size:1.1rem; margin-top:2rem;">Target definition</h3>
+        <p>The binary target <code>y_low_ctr</code> is 1 when a row's click-through rate (<code>clicks / impressions</code>) falls below the overall average CTR computed across the March slice, else 0. This label is derived, not provided — no <code>trend_direction</code>-style column exists in the warehouse table, unlike the small starter dataset used in early exploration.</p>
+        <h3 style="font-size:1.1rem;">Feature set and leakage exclusions</h3>
+        <p>Features: <code>gsc_avg_position</code>, <code>gsc_impressions</code>. <code>gsc_clicks</code> was deliberately excluded — it is the numerator of CTR, and CTR defines the target, so including it would be direct label leakage. One partial structural overlap remains and is disclosed rather than hidden: <code>gsc_impressions</code> is both a feature and the denominator of the CTR that defines the target. This is not full leakage (impressions alone cannot determine the label), but the feature and target are not fully independent, and results should be read with that in mind.</p>
+        <h3 style="font-size:1.1rem;">Validation design</h3>
+        <p>Rows share a page × day grain, and a small number of pages repeat across many days — 8 of 20 rows in an early review turned out to be a single page on different dates. A random row split would let the same page appear in both train and test, letting a model partially memorize it rather than generalize. We used a <strong>grouped split by <code>content_hash_id</code></strong> (scikit-learn's <code>GroupShuffleSplit</code>, 80/20), and verified — not assumed — zero page overlap between the resulting train and test sets.</p>
+        <h3 style="font-size:1.1rem;">Baseline and model</h3>
+        <p>The baseline is the hand-written rule <code>position ≥ 21 AND impressions ≥ 50</code>, scored as a classifier against the same grouped test set. The model is <strong>logistic regression</strong> (<code>class_weight='balanced'</code>, to correct for the target's class imbalance — roughly 90% of rows are labeled low-CTR), chosen for being a proportionate, interpretable step up from the baseline rather than an unjustified jump to a more complex method.</p>
+        <h3 style="font-size:1.1rem;">Success metric</h3>
+        <p>Precision, recall, and F1 — not accuracy — given the class imbalance in the target. Recall matters in particular: missing a genuinely underperforming page is the costlier error for the intended use case of this work.</p>
+      </section>
+
+      <section id="results">
+        <div class="kicker">05 — Results</div>
+        <h2>Model vs. baseline, same split, same metric</h2>
+        <table>
+          <thead><tr><th>Approach</th><th class="num">Precision</th><th class="num">Recall</th><th class="num">F1</th></tr></thead>
+          <tbody>
+            <tr><td>Baseline — hand-written rule</td><td class="num mono">0.858</td><td class="num mono">0.048</td><td class="num mono">0.092</td></tr>
+            <tr class="highlight"><td>Logistic Regression</td><td class="num mono">0.957</td><td class="num mono">0.847</td><td class="num mono">0.898</td></tr>
+          </tbody>
+        </table>
+        <p>The gap is almost entirely a <strong>recall</strong> story. The rule's rigid AND-threshold is precise when it fires — it's rarely wrong — but it fires on only a narrow slice of actual low-CTR pages. The model, using the same two raw signals with a learned rather than hand-set boundary, catches 17× more of the true low-CTR population while improving precision too.</p>
+
+        <div class="card">
+          <h3>Confusion matrix — Logistic Regression, held-out test set</h3>
+          <p><strong>True negatives</strong> 46,642 · <strong>False positives</strong> 24,695 · <strong>False negatives</strong> 100,024 · <strong>True positives</strong> 551,670</p>
+          <p style="margin-top:.6rem;">Even at 0.847 recall, 100,024 genuinely low-CTR pages were missed. A strong aggregate score can still hide a large absolute miss count — worth stating plainly rather than letting the F1 figure speak alone.</p>
+        </div>
+
+        <h3 style="margin-top:2.5rem;">The CTR cliff, not a CTR slope</h3>
+        <figure>
+          <img src="figures/ctr_by_position_bucket.png" alt="Bar chart of weighted CTR by position bucket, March 2026: 0.38% at positions 1-3, 0.32% at 4-10, 0.31% at 11-20, dropping to 0.13% at 21+">
+          <figcaption>Weighted CTR (total clicks ÷ total impressions per bucket), March 2026, single-client-and-multi-client-combined slice, n = 3,611,061 rows.</figcaption>
+        </figure>
+        <p>Position tiers 4–10 and 11–20 are nearly indistinguishable (0.32% vs. 0.31%) — the widely assumed smooth "CTR curve" is closer to <strong>flat, then a cliff</strong>: CTR only meaningfully collapses once a page falls to position 21 or worse, where it drops to less than half of every better-ranked tier. <span class="tag mixed">MIXED</span> against the naive expectation of a steady, gradual decline.</p>
+
+        <h3 style="margin-top:2.5rem;">Search volume did not predict ranking quality</h3>
+        <table>
+          <thead><tr><th>Impression volume tier</th><th class="num">n rows</th><th class="num">Avg. position</th></tr></thead>
+          <tbody>
+            <tr><td>High (1,000+)</td><td class="num mono">32,419</td><td class="num mono">11.89</td></tr>
+            <tr><td>Medium (100–999)</td><td class="num mono">606,189</td><td class="num mono">11.02</td></tr>
+            <tr><td>Low (&lt;100)</td><td class="num mono">9,202,770</td><td class="num mono">16.85</td></tr>
+          </tbody>
+        </table>
+        <p>High-volume pages ranked <em>no better</em> than medium-volume ones on average — medium-volume pages actually edged ahead (11.02 vs. 11.89). What differed clearly was the low-volume tier, ranking noticeably worse across the board. <span class="tag reversed">REVERSED</span> against the "high volume = high priority opportunity" assumption behind typical quick-win logic: the largest pool of poorly-ranked pages sits in low-volume, not high-volume, territory.</p>
+      </section>
+
+      <section id="limitations">
+        <div class="kicker">06 — Limitations &amp; honest framing</div>
+        <h2>Where this stops being valid</h2>
+        <div class="card">
+          <h3>A correction we made on ourselves</h3>
+          <p>An early 100-row sample (and an early, narrower baseline rule) suggested this analysis was effectively single-client. Our Week 7 action queue, built from the full March slice with a broader rule, surfaces at least five distinct clients in its top 20 rows alone. We are stating the corrected picture here rather than the earlier assumption: this dataset spans multiple clients, and the exact distribution across them has not been fully characterized.</p>
+        </div>
+        <ul class="plain">
+          <li><strong>Single month.</strong> March 2026 only. No seasonal or trend behavior is captured; a different month could show a different CTR-by-position or volume-by-position shape.</li>
+          <li><strong>No causal claim.</strong> Every finding here is an observed, directional association in this sample — not proof that fixing a flagged page will recover clicks. That would require a real before/after measurement, which this project did not run.</li>
+          <li><strong>Partial feature/target overlap.</strong> <code>gsc_impressions</code> is used both as a feature and inside the target's own CTR denominator — disclosed in Methodology, and a reason to treat the model's scores as directional priority rather than an independent probability.</li>
+          <li><strong>GSC-only signal surface.</strong> GA4, session-source, and AI-referral columns were entirely empty in this slice. Nothing here speaks to engagement, conversion, or AI-driven traffic.</li>
+          <li><strong>No revenue or business-value weighting.</strong> The action queue ranks by impressions, not by commercial value — a low-value page with high impressions can outrank a high-value page with fewer.</li>
+        </ul>
+      </section>
+
+      <section id="recommendations">
+        <div class="kicker">07 — Ranked recommendations</div>
+        <h2>The action playbook</h2>
+        <p>The validated signals above feed a two-reason-code queue, exported from <code>work/notebooks/w07_action_playbook.ipynb</code> as <code>work/outputs/action_playbook_queue.csv</code> (708,842 rows at page-day grain).</p>
+        <ol class="rank-list">
+          <li><div><strong>POOR_POSITION_WITH_VISIBILITY → improve_ctr</strong><span>Position 21+, CTR below the March portfolio average, impressions ≥ 50. The mechanical case: the page ranks poorly but already has clicks, so a title/snippet refinement is a reasonable first attempt.</span></div></li>
+          <li><div><strong>ZERO_CLICKS_WITH_VISIBILITY → review_content_quality</strong><span>Real impressions, literally zero clicks. Kept separate from the CTR fix because a total click failure can signal a deeper relevance or content-quality problem that a snippet tweak won't solve — this needs a human content review, not an automatic action.</span></div></li>
+        </ol>
+        <div class="card teal">
+          <h3>What a reviewer must check before acting</h3>
+          <p>Whether the flag is a one-day anomaly rather than a persistent pattern; whether the query's intent is informational (where low clicks can be normal); whether a zero-click page should be consolidated or noindexed rather than rewritten; whether a high-impression page was flagged purely for its volume despite already having healthy CTR; and whether the client/period match March 2026, since thresholds were derived from that slice specifically.</p>
+        </div>
+        <div class="card">
+          <h3>What should never be automated</h3>
+          <p>Auto-publishing rewritten titles or content; auto-removing or noindexing pages; auto-reallocating budget or headcount from the ranked order; treating rank position as a guaranteed-ROI signal rather than a priority hint.</p>
+        </div>
+        <h3 style="margin-top:2.5rem;">Monitoring &amp; retrain triggers</h3>
+        <ul class="plain">
+          <li>The position-21 CTR cliff shifts in a new month — thresholds should be re-derived, not reused from March.</li>
+          <li>The portfolio CTR benchmark moves meaningfully month over month.</li>
+          <li>A sample of acted-on pages shows no measurable lift after ~30 days.</li>
+          <li>A growing share of flags turn out to already have healthy CTR on manual review.</li>
+        </ul>
+        <p>This is a human-reviewed, non-production tool. The recommended cadence is a lightweight monthly re-run, not an automated retraining pipeline.</p>
+      </section>
+
+      <section id="reproducibility">
+        <div class="kicker">08 — Reproducibility</div>
+        <h2>Reproducibility</h2>
+        <p>Every number in this paper traces back to a committed notebook in this repository:</p>
+        <ul class="plain">
+          <li><code>work/notebooks/w01_research_question.ipynb</code> — initial lane framing and first signal check</li>
+          <li><code>work/notebooks/w02_ml_task_framing.ipynb</code> — task type, target, success metric</li>
+          <li><code>work/notebooks/w03_data_contract.ipynb</code> — warehouse table, grain, verification queries</li>
+          <li><code>work/notebooks/w04_baseline_score.ipynb</code> — signal checks and the hand-written baseline rule</li>
+          <li><code>work/notebooks/w05_model.ipynb</code> — grouped split, logistic regression, baseline comparison</li>
+          <li><code>work/notebooks/w06_validation_audit.ipynb</code> — leakage audit, claim rewrite</li>
+          <li><code>work/notebooks/w07_action_playbook.ipynb</code> — the ranked action queue and this paper's exports</li>
+        </ul>
+        <p>Data access: request access to <code>FlyRank/internship-warehouse</code> on Hugging Face, generate a plain-Read token, and query the <code>fact_content_daily_performance</code> table's Parquet partitions directly via DuckDB — no full download required. Metrics referenced throughout are committed at <code>work/outputs/metrics.json</code>.</p>
+      </section>
+
+    </div>
+
+    <footer>
+      <div class="wrap" id="acknowledgments">
+        <div class="kicker">09 — Acknowledgments &amp; data credit</div>
+        <p>Built on the <a href="https://flyrank.ai" target="_blank" rel="noopener">FlyRank ML Internship dataset</a>. Thank you to FlyRank for the warehouse access, the live sessions, and the review that shaped this track.</p>
+      </div>
+    </footer>
+  </main>
+</div>
+
+<script>
+  const links = document.querySelectorAll('nav.rail a');
+  const sections = [...links].map(a => document.querySelector(a.getAttribute('href')));
+  const setActive = () => {
+    let idx = 0;
+    sections.forEach((s,i) => { if(s && s.getBoundingClientRect().top - 80 <= 0) idx = i; });
+    links.forEach((a,i) => a.classList.toggle('active', i === idx));
+  };
+  document.addEventListener('scroll', setActive, {passive:true});
+  setActive();
+</script>
+</body>
+</html>
